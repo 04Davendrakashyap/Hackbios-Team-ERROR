@@ -1,0 +1,121 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if a user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if the user is the owner of the document
+    function isOwner(userId) {
+        return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Helper function to check if the user is the owner of the hospital document
+    function isHospitalOwner(hospitalId) {
+      // This rule now specifically checks the `adminUid` field on the hospital document.
+      return isAuthenticated() && get(/databases/$(database)/documents/hospitals/$(hospitalId)).data.adminUid == request.auth.uid;
+    }
+
+    // Helper function to check if the user is an authorized staff member of the hospital
+    // This rule assumes the `adminUid` field on the hospital document contains the owner's UID.
+    function isAuthorized(hospitalId) {
+      return isAuthenticated() && get(/databases/$(database)/documents/hospitals/$(hospitalId)).data.adminUid == request.auth.uid;
+    }
+
+    // USERS COLLECTION
+    match /users/{userId} {
+      // Users can only read and write to their own profile.
+      allow read, write: if isOwner(userId);
+    }
+    
+    // PATIENTS COLLECTION GROUP (for public portal access and transfers)
+    match /{path=**}/patients/{patientId} {
+      
+      // Allow a hospital admin to perform write operations (create, update, delete)
+      allow create, update, delete: if isAuthorized(path[1]);
+      
+      // Allow a user to read their own patient record directly if they know the path.
+      allow get: if isAuthenticated() && resource.data.contact.email == request.auth.token.email;
+    }
+
+    // DOCTORS COLLECTION GROUP
+    match /{path=**}/doctors/{doctorId} {
+        // Allow public read access for all doctors across all hospitals for the search functionality.
+        allow get, list: if true;
+        // Write access for doctors is handled within the hospital subcollection rule below.
+    }
+
+
+    // HOSPITALS COLLECTION
+    match /hospitals/{hospitalId} {
+      // Allow public read access for the hospital directory and detail pages.
+      allow get, list: if true;
+
+      // Allow a user to create their own hospital document where the document ID is their UID
+      // and they are the admin.
+      allow create: if request.auth.uid == hospitalId && request.resource.data.adminUid == request.auth.uid;
+
+      // Allow the owner of the hospital to update or delete it
+      allow update, delete: if isHospitalOwner(hospitalId);
+      
+      // BEDS SUBCOLLECTION
+      match /beds/{bedId} {
+        allow read, write: if isAuthorized(hospitalId);
+      }
+      
+      // DOCTORS SUBCOLLECTION (for write)
+      match /doctors/{doctorId} {
+        allow write: if isAuthorized(hospitalId);
+      }
+      
+      // APPOINTMENTS SUBCOLLECTION
+      match /appointments/{appointmentId} {
+        // Allow staff to read, list and write
+        allow list, read, write: if isAuthorized(hospitalId);
+        // Also allow any authenticated user to create an appointment (for public portal)
+        allow create: if isAuthenticated();
+      }
+
+      // PATIENTS SUBCOLLECTION
+      match /patients/{patientId} {
+        // Authorized staff can read and list patients in their own hospital
+        allow read, list, write: if isAuthorized(hospitalId);
+      }
+
+      // EMERGENCIES SUBCOLLECTION
+      match /emergencies/{emergencyId} {
+        // Allow any authenticated user to create an emergency alert
+        allow create: if isAuthenticated();
+        // Only authorized hospital staff can read or update the emergency status
+        allow read, update: if isAuthorized(hospitalId);
+      }
+
+      // BILLING SUBCOLLECTION
+      match /billings/{billingId} {
+        // Authorized staff can read and write billing documents in their own hospital
+        allow read, write: if isAuthorized(hospitalId);
+      }
+    }
+    
+    // TRANSFER HISTORY COLLECTION
+    match /transfer_history/{transferId} {
+      // Allow creation if the user is authenticated and is the admin of the 'from' hospital
+      allow create: if isAuthenticated() && isAuthorized(request.resource.data.fromHospitalId);
+      
+      // Allow read access if the user is an admin of either the sending or receiving hospital
+      allow get: if isAuthenticated() && (isAuthorized(resource.data.fromHospitalId) || isAuthorized(resource.data.toHospitalId));
+
+      // Allow listing of transfers. In a real app, you'd likely want to secure this with query constraints.
+      allow list: if isAuthenticated();
+
+      // Only allow updating the status by the receiving hospital's admin
+      allow update: if isAuthenticated() && isAuthorized(resource.data.toHospitalId);
+
+      // Prevent deletion for auditing purposes
+      allow delete: if false;
+    }
+  }
+}

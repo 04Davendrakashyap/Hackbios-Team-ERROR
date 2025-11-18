@@ -1,0 +1,83 @@
+# MediSync Pro: Local Installation Guide
+
+This guide will walk you through the steps to set up and run the MediSync Pro project on your local machine.
+
+## 1. Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+- **Node.js**: Version 18.x or higher. You can download it from [https://nodejs.org/](https://nodejs.org/)
+- **npm**: Node Package Manager, which comes with Node.js.
+
+## 2. Firebase Project Setup
+
+This application is powered by Firebase. You will need to create your own Firebase project to run it locally.
+
+### Step 2.1: Create a Firebase Project
+1.  Go to the [Firebase Console](https://console.firebase.google.com/).
+2.  Click **"Add project"** and follow the on-screen instructions to create a new project.
+
+### Step 2.2: Create a Web App
+1.  Inside your new Firebase project, click the Web icon (`</>`) to add a new web app.
+2.  Give your app a nickname (e.g., "MediSync Pro Local").
+3.  Click **"Register app"**. Firebase will provide you with a configuration object. **You will need this for the next step.**
+
+### Step 2.3: Configure Firebase in the App
+1.  In the project code, open the file: `src/firebase/config.ts`.
+2.  Replace the existing `firebaseConfig` object with the one you copied from the Firebase console in the previous step.
+
+### Step 2.4: Enable Firebase Services
+1.  In the Firebase Console, go to the **"Build"** section in the left-hand menu.
+2.  **Firestore Database**:
+    - Click **"Firestore Database"**.
+    - Click **"Create database"**.
+    - Choose **"Start in test mode"** for local development (this allows open access, which is fine for a local setup but should be secured for production).
+    - Select a location and click **"Enable"**.
+3.  **Authentication**:
+    - Click **"Authentication"**.
+    - Click **"Get started"**.
+    - Go to the **"Sign-in method"** tab.
+    - Click on **"Email/Password"** from the list of providers, enable it, and click **"Save"**.
+
+### Step 2.5: Set Up Security Rules
+1.  In the Firebase Console, go to **"Firestore Database"** and click on the **"Rules"** tab.
+2.  Copy the entire content from the `firestore.rules` file in the project's root directory.
+3.  Paste the content into the rules editor in the Firebase Console, replacing any existing rules.
+4.  Click **"Publish"**.
+
+## 3. Set Up Environment Variables
+
+The AI features of this app use Google's Gemini models via Genkit. You need an API key for this.
+
+1.  Create an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
+2.  In the root of your project, find the `.env` file.
+3.  Add the following line to the `.env` file, replacing `YOUR_API_KEY` with the key you just created:
+    ```
+    GEMINI_API_KEY=YOUR_API_KEY
+    ```
+
+## 4. Install Dependencies
+
+Open your terminal or command prompt, navigate to the root directory of the project, and run the following command to install all the necessary packages:
+
+```bash
+npm install
+```
+
+## 5. Run the Application
+
+Once the installation is complete, you can start the development server.
+
+1.  To run the main Next.js application, use:
+    ```bash
+    npm run dev
+    ```
+    This will start the app, typically on `http://localhost:9002`.
+
+2.  To run the Genkit AI flows (required for the Symptom Checker), open a **second, separate terminal** and run:
+    ```bash
+    npm run genkit:dev
+    ```
+
+You need both servers running simultaneously for all features of the application to work correctly.
+
+You should now be able to access the application in your browser and start using it!
